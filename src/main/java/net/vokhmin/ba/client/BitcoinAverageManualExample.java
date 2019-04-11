@@ -18,13 +18,6 @@ public class BitcoinAverageManualExample {
         return "wss://" + host + TICKER_URI.replace("$TICKET", ticket).replace("$PUB_KEY", key);
     }
 
-//    @Value("host")
-//    private String host;
-//    @Value("public.key")
-//    private String publicKey;
-//    @Value("secret.key")
-//    private String secretKey;
-
     @Bean
     private BitcoinAverageAuthV2 getAuthenithicator() {
         return new BitcoinAverageAuthV2(config);

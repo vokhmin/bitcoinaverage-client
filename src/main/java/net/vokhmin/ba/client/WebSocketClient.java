@@ -20,11 +20,16 @@ import static net.vokhmin.ba.client.BitcoinAverageConfig.HOST;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.Base64;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -40,26 +45,54 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketClientCompressionHandler;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.timeout.IdleStateHandler;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
-/**
- * This is an example of a WebSocket client.
- * <p>
- * In order to run this example you need a compatible WebSocket server.
- * Therefore you can either start the WebSocket server from the examples
- * by running {@link io.netty.example.http.websocketx.server.WebSocketServer}
- * or connect to an existing WebSocket server such as
- * <a href="http://www.websocket.org/echo.html">ws://echo.websocket.org</a>.
- * <p>
- * The client will attempt to connect to the URI passed to it as the first argument.
- * You don't have to specify any arguments if you want to connect to the example WebSocket server,
- * as this is the default.
- */
+@Slf4j
 public final class WebSocketClient {
 
+    static final long PING_INTERVAL = 30;    // in seconds
     static final String URL = System.getProperty("url", "ws://127.0.0.1:8080/websocket");
+
+    public class PipelineInitializer extends ChannelInitializer<SocketChannel> {
+
+        private final SslContext sslCtx;
+        private final ChannelHandler handler;
+        private final long pingInterval;
+
+        public PipelineInitializer(SslContext sslCtx, @NonNull ChannelHandler handler, long pingInterval) {
+            this.sslCtx = sslCtx;
+            this.handler = handler;
+            this.pingInterval = pingInterval;
+        }
+
+        @Override
+        public void initChannel(SocketChannel ch) {
+            ChannelPipeline pipeline = ch.pipeline();
+            pipeline.addLast(
+                    new LoggingHandler(LogLevel.TRACE));
+            if (sslCtx != null) {
+                pipeline.addLast(
+                        sslCtx.newHandler(ch.alloc()));
+            }
+            pipeline.addLast(
+                    "idleState",
+                    new IdleStateHandler(0, pingInterval, 0, TimeUnit.SECONDS));
+            pipeline.addLast(
+                    new HttpClientCodec(),
+                    new HttpObjectAggregator(8192),
+                    WebSocketClientCompressionHandler.INSTANCE,
+                    handler);
+            pipeline.addLast(
+                    WebSocketHeartBeatHandler.INSTANCE);
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         final WebSocketClient app = new WebSocketClient();
@@ -92,7 +125,8 @@ public final class WebSocketClient {
         final SslContext sslCtx;
         if (ssl) {
             sslCtx = SslContextBuilder.forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .build();
         } else {
             sslCtx = null;
         }
@@ -105,25 +139,18 @@ public final class WebSocketClient {
             final WebSocketClientHandler handler =
                     new WebSocketClientHandler(
                             WebSocketClientHandshakerFactory.newHandshaker(
-                                    uri, WebSocketVersion.V13, null, true, new DefaultHttpHeaders()));
+                                    uri,
+                                    WebSocketVersion.V13,
+                                    null,
+                                    true,
+                                    new DefaultHttpHeaders()    //.add("Sec-WebSocket-Key", randomBase64())
+                            ));
 
             Bootstrap b = new Bootstrap();
             b.group(group)
                     .channel(NioSocketChannel.class)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ChannelPipeline p = ch.pipeline();
-                            if (sslCtx != null) {
-                                p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
-                            }
-                            p.addLast(
-                                    new HttpClientCodec(),
-                                    new HttpObjectAggregator(8192),
-                                    WebSocketClientCompressionHandler.INSTANCE,
-                                    handler);
-                        }
-                    });
+                    .handler(new PipelineInitializer(sslCtx, handler, PING_INTERVAL))
+                    .option(ChannelOption.SO_KEEPALIVE, true);
 
             Channel ch = b.connect(uri.getHost(), port).sync().channel();
             handler.handshakeFuture().sync();
@@ -148,5 +175,9 @@ public final class WebSocketClient {
         } finally {
             group.shutdownGracefully();
         }
+    }
+
+    private String randomBase64() {
+        return Base64.getEncoder().encodeToString(UUID.randomUUID().toString().getBytes());
     }
 }
