@@ -1,5 +1,9 @@
 private.properties
 
+.idea/
+build/
+gradle/
+
 ### Vert.x ###
 .vertx/
 
