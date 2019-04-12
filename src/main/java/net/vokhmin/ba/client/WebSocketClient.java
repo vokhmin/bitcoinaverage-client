@@ -20,9 +20,6 @@ import static net.vokhmin.ba.client.BitcoinAverageConfig.HOST;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.util.Base64;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
@@ -50,7 +47,6 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.handler.timeout.IdleStateHandler;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -64,12 +60,10 @@ public final class WebSocketClient {
 
         private final SslContext sslCtx;
         private final ChannelHandler handler;
-        private final long pingInterval;
 
         public PipelineInitializer(SslContext sslCtx, @NonNull ChannelHandler handler, long pingInterval) {
             this.sslCtx = sslCtx;
             this.handler = handler;
-            this.pingInterval = pingInterval;
         }
 
         @Override
@@ -82,15 +76,10 @@ public final class WebSocketClient {
                         sslCtx.newHandler(ch.alloc()));
             }
             pipeline.addLast(
-                    "idleState",
-                    new IdleStateHandler(0, pingInterval, 0, TimeUnit.SECONDS));
-            pipeline.addLast(
                     new HttpClientCodec(),
                     new HttpObjectAggregator(8192),
                     WebSocketClientCompressionHandler.INSTANCE,
                     handler);
-            pipeline.addLast(
-                    WebSocketHeartBeatHandler.INSTANCE);
         }
     }
 
@@ -143,18 +132,8 @@ public final class WebSocketClient {
                                     WebSocketVersion.V13,
                                     null,
                                     true,
-                                    new DefaultHttpHeaders()    //.add("Sec-WebSocket-Key", randomBase64())
+                                    new DefaultHttpHeaders()
                             ));
-//            final WebSocketClientProtocolHandler handler =
-//                    new WebSocketClientProtocolHandler(
-//                            WebSocketClientHandshakerFactory.newHandshaker(
-//                                    uri,
-//                                    WebSocketVersion.V13,
-//                                    null,
-//                                    true,
-//                                    new DefaultHttpHeaders()
-//                            ));
-
             Bootstrap b = new Bootstrap();
             b.group(group)
                     .channel(NioSocketChannel.class)
@@ -186,7 +165,4 @@ public final class WebSocketClient {
         }
     }
 
-    private String randomBase64() {
-        return Base64.getEncoder().encodeToString(UUID.randomUUID().toString().getBytes());
-    }
 }
