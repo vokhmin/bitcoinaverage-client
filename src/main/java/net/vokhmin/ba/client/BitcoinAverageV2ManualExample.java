@@ -10,17 +10,17 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class BitcoinAverageManualExample {
+public class BitcoinAverageV2ManualExample {
 
-    private static final String TICKER_URI = "/websocket/multiple/ticker?ticket=$TICKET&public_key=$PUB_KEY";
+    private static final String TICKER_URI = "/websocket/v2/ticker?ticket=$TICKET&public_key=$PUB_KEY";
 
     public static String getWsUrl(String host, String ticket, String key) {
         return "wss://" + host + TICKER_URI.replace("$TICKET", ticket).replace("$PUB_KEY", key);
     }
 
     @Bean
-    private BitcoinAverageAuthV1 getAuthenithicator() {
-        return new BitcoinAverageAuthV1(config);
+    private BitcoinAverageAuthV2 getAuthenithicatorV2() {
+        return new BitcoinAverageAuthV2(config);
     }
 
     @Autowired
@@ -29,7 +29,7 @@ public class BitcoinAverageManualExample {
     public void run(String... args) throws Exception {
         log.info("EXECUTING : command line runner");
 
-        final String ticket = getAuthenithicator().auth(config.getSecretKey());
+        final String ticket = getAuthenithicatorV2().auth(config.getSecretKey());
         final WebSocketClient client = new WebSocketClient();
         client.run(getWsUrl(config.getHost(), ticket, config.getPublicKey()));
     }
@@ -37,9 +37,9 @@ public class BitcoinAverageManualExample {
     public static void main(String[] args) throws Exception {
         ApplicationContext ctx =
                 new AnnotationConfigApplicationContext(
-                        BitcoinAverageManualExample.class,
+                        BitcoinAverageV2ManualExample.class,
                         BitcoinAverageConfig.class);
-        BitcoinAverageManualExample main = ctx.getBean(BitcoinAverageManualExample.class);
+        BitcoinAverageV2ManualExample main = ctx.getBean(BitcoinAverageV2ManualExample.class);
         main.run();
     }
 

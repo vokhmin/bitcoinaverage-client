@@ -145,6 +145,15 @@ public final class WebSocketClient {
                                     true,
                                     new DefaultHttpHeaders()    //.add("Sec-WebSocket-Key", randomBase64())
                             ));
+//            final WebSocketClientProtocolHandler handler =
+//                    new WebSocketClientProtocolHandler(
+//                            WebSocketClientHandshakerFactory.newHandshaker(
+//                                    uri,
+//                                    WebSocketVersion.V13,
+//                                    null,
+//                                    true,
+//                                    new DefaultHttpHeaders()
+//                            ));
 
             Bootstrap b = new Bootstrap();
             b.group(group)
